@@ -1,13 +1,10 @@
-#pragma once
+#include "cApp.h"
 
-#include "wx/wx.h"
-#include "cMain.h"
+wxIMPLEMENT_APP(cApp);
 
-class cApp : public wxApp
+bool cApp::OnInit()
 {
-private:
-	cMain* m_frame1 = nullptr;
-public:
-	virtual bool OnInit();
-};
-
+	m_frame1 = new cMain();
+	m_frame1->Show();
+	return true;
+}
