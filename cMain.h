@@ -20,12 +20,11 @@ public:
 	double vy = 0.0;
 	double ax = 0.0;
 	double ay = 0.0;
-
+private:
+	bool drag = false;
 	void OnProgressTimer(wxTimerEvent& event);
 	void OnClose(wxCommandEvent& event);
-	void OnMouseMove(wxMouseEvent& event);
 	void OnMouseDown(wxMouseEvent& event);
-	void OnMouseUp(wxMouseEvent& event);
 	wxDECLARE_EVENT_TABLE();
 };
 
