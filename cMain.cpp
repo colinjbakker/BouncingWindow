@@ -79,7 +79,7 @@ void cMain::OnProgressTimer(wxTimerEvent& event)
 		if (pos.x >= wallX || pos.x <= 0) {
 			vx = -vx * BOUNCINESS;
 			ax = -ax;
-			pos.x = (pos.x < 0) ? 0 : wallX;
+			pos.x = (pos.x <= 0) ? 0 : wallX;
 		}
 		this->Move(pos);
 	}
