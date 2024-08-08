@@ -8,6 +8,8 @@ const float FRICTION = 0.25;
 const float BOUNCINESS = 0.5;
 const float GRAVITYANGULAR = 0.05;
 
+const wxRealPoint GRAVITYVECTOR = wxRealPoint(0.0, 0.2);
+
 float angleDifference = 0.0;
 
 wxBEGIN_EVENT_TABLE(cMain, wxFrame)
@@ -85,7 +87,6 @@ void cMain::OnProgressTimer(wxTimerEvent& event)
 	if (rotationAngle < 0) {
 		rotationAngle += 360;
 	}
-
 	UpdateBitmap();
 
 	if (drag && wxGetMouseState().LeftIsDown()) {
@@ -95,8 +96,32 @@ void cMain::OnProgressTimer(wxTimerEvent& event)
 		float newX = (100 - dragStart.x) * cos(-angleDifference * (PI / 180)) - (100 - dragStart.y) * sin(-angleDifference * (PI / 180)) + dragStart.x;
 		float newY = (100 - dragStart.x) * sin(-angleDifference * (PI / 180)) + (100 - dragStart.y) * cos(-angleDifference * (PI / 180)) + dragStart.y;
 
-		double theta = acos(-vCenterToHand.y / sqrt(pow(vCenterToHand.x, 2) + pow(vCenterToHand.y, 2)));
+		wxPoint newPos = wxPoint(wxGetMousePosition().x - dragStart.x + newX - 100, wxGetMousePosition().y - dragStart.y + newY - 100);
+		wxPoint diff = wxPoint(newPos.x - pos.x, newPos.y - pos.y);
 
+		vx = diff.x;
+		vy = diff.y;
+
+		//force of gravity
+		//force of air resistance
+		//torque = radius * force * sin(angle)
+		//force of air resistance = c * v ^ 2
+		//radius = ||vCenterToHand||
+		//air resistance vector = -diff
+		//double theta = acos(-vCenterToHand.y / sqrt(pow(vCenterToHand.x, 2) + pow(vCenterToHand.y, 2)));
+		float radius = sqrt(vCenterToHand.x * vCenterToHand.x + vCenterToHand.y * vCenterToHand.y);
+		float gravityTorque = GRAVITY * vCenterToHand.x / 100;
+		//double airtheta = (sqrt(vx * vx + vy * vy) < 2) ? 0 : acos(vCenterToHand.x * vx * -1 + vCenterToHand.y * vy * -1 / (radius * sqrt(vx * vx + vy * vy)));
+		float airTorque = 0.02 * (-vx * vCenterToHand.y + vy * -vCenterToHand.x) / 100;
+		angularA = gravityTorque + airTorque;
+		//wxLogDebug("angularA: " + wxString::Format(wxT("%f"), angularA) + " gravityTorque: " + wxString::Format(wxT("%f"), gravityTorque) + " airTorque: " + wxString::Format(wxT("%f"), airTorque));
+
+		pos = newPos;
+		this->Move(pos);
+		ax = 0;
+		ay = 0;
+		
+		/*
 		if (theta < 31 * PI / 32) {
 			angularA = (vCenterToHand.x > 0) ? GRAVITYANGULAR * sin(theta) : -GRAVITYANGULAR * sin(theta);
 			if ((angularA < 0) == (angularV < 0)) {
@@ -110,46 +135,16 @@ void cMain::OnProgressTimer(wxTimerEvent& event)
 			angularA = 0;
 		}
 		wxLogDebug("angularA: " + wxString::Format(wxT("%f"), angularA) + " , angularV: " + wxString::Format(wxT("%f"), dragStart.x) + " , theta: " + wxString::Format(wxT("%f"), theta));
-		//wxLogDebug(wxString::Format(wxT("%f"), vCenterToHand.x) + " , " + wxString::Format(wxT("%f"), vCenterToHand.y) + " , theta: " + wxString::Format(wxT("%f"), theta));
-		
-		//wxLogDebug(wxString::Format(wxT("%f"), dragStart.x) + " , " + wxString::Format(wxT("%f"), dragStart.x));
-		/*
-		
-		if (theta < 15 * PI / 16) {
-			angularA = (vCenterToHand.x > 0) ? -GRAVITYANGULAR : GRAVITYANGULAR;
-		}
-		else {
-			angularA = 0;
-		}
-		//int temp = currentBitmap;
-		if (HandleRotation(dt)) {
-			float diff = -angularV * dt;
-			diffsum += diff;
-			dragStart = wxPoint(vCenterToHand.x * cos(diff) - vCenterToHand.y * sin(diff) + 100, 100 - (vCenterToHand.x * sin(diff) + vCenterToHand.y * cos(diff)));
-		}
-		wxLogDebug(wxString::Format(wxT("%f"), diffsum));
-
 		*/
 		
+
 		
-		//wxLogDebug(wxString::Format(wxT("%i"), dragStart.x) + " , " + wxString::Format(wxT("%i"), dragStart.y));
-		wxPoint newPos = wxPoint(wxGetMousePosition().x - dragStart.x + newX - 100, wxGetMousePosition().y - dragStart.y + newY - 100);
-		wxPoint diff = wxPoint(newPos.x - pos.x, newPos.y - pos.y);
-		pos = newPos;
-		this->Move(pos);
-		ax = 0;
-		ay = 0;
-		vx = diff.x;
-		vy = diff.y;
 	}
 	else {
 		angleDifference = 0.0;
-		angularA = 0.0;
 		drag = false;
-		/*
-		
-		HandleRotation(dt);
-		*/
+
+		//space between visual edge of box and actual edge of window
 		double offset = (currentBitmap < 8) ? -100 * cos(currentBitmap * PI / 32) + 100 : -100 * sin(currentBitmap * PI / 32) + 100;
 		
 		const unsigned int floorY = displayHeight - bitmaps[currentBitmap].GetHeight() + offset;
@@ -165,23 +160,54 @@ void cMain::OnProgressTimer(wxTimerEvent& event)
 		ay = GRAVITY;
 
 		if (pos.y >= floorY || pos.y < 0 - offset) {
+			//floor and ceiling
 			//wxLogDebug("before: " + wxString::Format(wxT("%f"), vy));
 			ay = (pos.y < 0 - offset) ? GRAVITY : 0;
 			ax = (vx == 0) ? 0 : (vx > 0) ? -FRICTION : FRICTION;
+			
+			vx -= angularV * dt / 10;
+
 			vy = (vy > -2 && vy < 2) ? 0 : - (vy - GRAVITY * 2 * dt) * BOUNCINESS;
 			pos.y = (pos.y < 0 - offset) ? 0 - offset : floorY;
-			//wxLogDebug("after: " + wxString::Format(wxT("%f"), vy));
-			rotationAngle = 44;
-			//currentBitmap = 8;
-			//SetShape(regions[4]);
-			angularV = 0.0;
-			//angularA = 0.0;
+
+			//linear friction
+			//angular friction
+			//gravity angular
+
+			float angularFrictionAngle = rotationAngle - floor((rotationAngle - 45)/ 90) * 90;
+
+			float angularFrictionForce = -angularV * 0.05;
+
+			float angularFrictionTorque = angularFrictionForce * sin(angularFrictionAngle * PI / 180);
+
+			float gravityAngle = fmod(rotationAngle, 90);
+
+			gravityAngle = (gravityAngle < 44) ? gravityAngle : 360 - gravityAngle;
+
+			float gravityTorque = GRAVITYANGULAR * 2 * sin(gravityAngle * PI / 180);
+
+			if ((angularV > 0) == (gravityTorque > 0)) {
+				gravityTorque *= 0.5;
+			}
+
+			//wxLogDebug("angularFrictionTorque: " + wxString::Format(wxT(" % f"), angularFrictionTorque) + " gravityTorque: " + wxString::Format(wxT(" % f"), gravityTorque));
+
+			//wxLogDebug("rotationAngle: " + wxString::Format(wxT(" % f"), rotationAngle) + " gravityAngle: " + wxString::Format(wxT(" % f"), gravityAngle) + " gravityTorque: " + wxString::Format(wxT(" % f"), gravityTorque));
+			
+
+			angularA = angularFrictionTorque + gravityTorque;
 		}
 
 		if (pos.x >= wallX || pos.x <= 0 - offset) {
+			//walls
 			vx = -vx * BOUNCINESS;
 			ax = -ax;
 			pos.x = (pos.x <= 0 - offset) ? 0 - offset : wallX;
+		}
+
+		if (pos.y < floorY && pos.y > 0 - offset && pos.x < wallX && pos.x > 0 - offset) {
+			//in da air
+			angularA = 0.0;
 		}
 		this->Move(pos);
 	}
